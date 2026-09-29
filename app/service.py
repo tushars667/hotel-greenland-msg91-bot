@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -22,6 +21,15 @@ def now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def as_utc(value: datetime | None) -> datetime | None:
+    """Normalize datetimes loaded from SQLite/Postgres to timezone-aware UTC."""
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 def _state(db: Session, phone: str) -> CustomerState:
     state = db.get(CustomerState, phone)
     if state is None:
@@ -31,21 +39,24 @@ def _state(db: Session, phone: str) -> CustomerState:
     return state
 
 
-def _dedupe_inbound(db: Session, payload: dict) -> bool:
+def _inbound_event_key(payload: dict) -> str | None:
     uuid = inbound_uuid(payload)
-    if not uuid:
-        # If MSG91 omitted a stable ID, do not risk dropping a legitimate message.
-        return False
-    key = f"in:{uuid}"
-    if db.get(ProcessedEvent, key):
-        return True
-    db.add(ProcessedEvent(event_key=key))
+    return f"in:{uuid}" if uuid else None
+
+
+def _is_duplicate_inbound(db: Session, event_key: str | None) -> bool:
+    return bool(event_key and db.get(ProcessedEvent, event_key))
+
+
+def _mark_inbound_processed(db: Session, event_key: str | None) -> None:
+    # Mark only AFTER successful processing. If processing raises, MSG91 can retry it.
+    if not event_key:
+        return
+    db.merge(ProcessedEvent(event_key=event_key))
     db.commit()
-    return False
 
 
 async def _show_menu(db: Session, phone: str, state: CustomerState) -> None:
-    # Greeting and menu are separate messages so the visual style matches your old bot.
     await msg91.send_text(
         db,
         phone,
@@ -63,26 +74,19 @@ async def _send_gallery(db: Session, phone: str, photos: list[tuple[str, str]]) 
     await msg91.send_text(db, phone, "Send *menu* anytime to view the main menu.")
 
 
-async def handle_inbound(db: Session, payload: dict) -> dict:
-    phone = customer_number(payload)
-    if not phone:
-        return {"ok": True, "ignored": "missing customer number"}
-
-    if _dedupe_inbound(db, payload):
-        return {"ok": True, "ignored": "duplicate"}
-
+async def _process_inbound(db: Session, payload: dict, phone: str) -> dict:
     state = _state(db, phone)
     now = now_utc()
 
-    # Human takes precedence. Backend remains completely silent during takeover.
-    if state.human_until and state.human_until > now:
+    # SQLite can return stored datetimes without tzinfo. Normalize before comparison.
+    human_until = as_utc(state.human_until)
+    if human_until and human_until > now:
         return {"ok": True, "ignored": "human takeover active"}
 
     selection = extract_selection(payload)
     text = extract_text(payload).strip()
     lowered = text.lower()
 
-    # Explicit customer request to reopen menu.
     if lowered in {"menu", "main menu"} or selection == "main_menu":
         await _show_menu(db, phone, state)
         return {"ok": True, "action": "menu"}
@@ -119,24 +123,41 @@ async def handle_inbound(db: Session, payload: dict) -> dict:
         await msg91.send_text(db, phone, WEBSITE_TEXT)
         return {"ok": True, "action": selection}
 
-    # First inbound message of a new/expired bot session: show the menu regardless of wording.
     reset_after = timedelta(hours=settings.menu_reset_hours)
-    if state.menu_sent_at is None or now - state.menu_sent_at > reset_after:
+    menu_sent_at = as_utc(state.menu_sent_at)
+    if menu_sent_at is None or now - menu_sent_at > reset_after:
         await _show_menu(db, phone, state)
         return {"ok": True, "action": "first_message_menu"}
 
-    # This is the behavior we wanted from the beginning:
-    # arbitrary normal text after the menu gets NO bot reply.
+    # Plain free-text after the menu is intentionally silent.
     return {"ok": True, "ignored": "plain text after menu"}
+
+
+async def handle_inbound(db: Session, payload: dict) -> dict:
+    phone = customer_number(payload)
+    if not phone:
+        return {"ok": True, "ignored": "missing customer number"}
+
+    event_key = _inbound_event_key(payload)
+    if _is_duplicate_inbound(db, event_key):
+        return {"ok": True, "ignored": "duplicate"}
+
+    try:
+        result = await _process_inbound(db, payload, phone)
+    except Exception:
+        db.rollback()
+        raise
+
+    _mark_inbound_processed(db, event_key)
+    return result
 
 
 def handle_outbound(db: Session, payload: dict) -> dict:
     """
-    Configure MSG91's `On Outbound Request Received` webhook to hit this endpoint.
+    `On Outbound Request Received` webhook.
 
-    If the outbound request belongs to our backend, ignore it.
-    Any other outbound message is assumed to be a human agent replying from Hello,
-    so the bot is muted for HUMAN_TAKEOVER_HOURS.
+    Backend-originated outbound messages are ignored. Any other outbound message is
+    treated as a human agent reply, muting the bot for HUMAN_TAKEOVER_HOURS.
     """
     phone = customer_number(payload)
     if not phone:
