@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -26,6 +26,22 @@ def get_db():
         db.close()
 
 
+
+
+async def process_inbound_background(payload: dict) -> None:
+    """Process MSG91 inbound work after the webhook has already been ACKed.
+
+    MSG91's webhook timeout is short; sending multiple media messages synchronously
+    can exceed it and trigger retries. This task owns its own DB session.
+    """
+    db = SessionLocal()
+    try:
+        await handle_inbound(db, payload)
+    except Exception:
+        logging.getLogger(__name__).exception("Background inbound processing failed")
+    finally:
+        db.close()
+
 def verify_webhook_secret(x_webhook_secret: str | None) -> None:
     if not x_webhook_secret or x_webhook_secret != settings.webhook_secret:
         raise HTTPException(status_code=401, detail="invalid webhook secret")
@@ -39,12 +55,13 @@ def health() -> dict:
 @app.post("/webhooks/msg91/inbound")
 async def msg91_inbound(
     request: Request,
-    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks,
     x_webhook_secret: str | None = Header(default=None),
 ):
     verify_webhook_secret(x_webhook_secret)
     payload = await request.json()
-    return await handle_inbound(db, payload)
+    background_tasks.add_task(process_inbound_background, payload)
+    return {"ok": True, "queued": True}
 
 
 @app.post("/webhooks/msg91/outbound")
