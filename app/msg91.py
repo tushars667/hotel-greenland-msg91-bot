@@ -129,23 +129,62 @@ class Msg91Client:
         )
 
     async def send_image(self, db: Session, to: str, url: str, caption: str = "") -> dict[str, Any]:
-        # MSG91's session-message endpoint follows WhatsApp message types. If your account
-        # rejects this exact media shape, the handler below falls back to a clickable URL.
-        payload = {
-            "recipient_number": to,
-            "integrated_number": settings.msg91_integrated_number,
-            "content_type": "image",
-            "image": {"link": url},
-        }
-        if caption:
-            payload["image"]["caption"] = caption
+        """Send an in-session WhatsApp image.
 
-        try:
-            return await self._send(db, to, payload, "image")
-        except Msg91Error:
-            logger.exception("Image send failed; falling back to URL text")
-            fallback = f"{caption}\n{url}".strip()
-            return await self.send_text(db, to, fallback)
+        MSG91 has exposed more than one accepted shape for the single-message endpoint
+        over time. The current SDK/API family wraps ordinary WhatsApp messages inside
+        `payload`, while interactive messages use the top-level interactive shape.
+        Try the current wrapped form first, then two compatibility forms.
+        """
+        image = {"link": url}
+        if caption:
+            image["caption"] = caption
+
+        variants = [
+            {
+                "integrated_number": settings.msg91_integrated_number,
+                "content_type": "image",
+                "payload": {
+                    "messaging_product": "whatsapp",
+                    "recipient_type": "individual",
+                    "to": to,
+                    "type": "image",
+                    "image": image,
+                },
+            },
+            {
+                "integrated_number": settings.msg91_integrated_number,
+                "content_type": "image",
+                "payload": {
+                    "to": to,
+                    "type": "image",
+                    "image": image,
+                },
+            },
+            {
+                "recipient_number": to,
+                "integrated_number": settings.msg91_integrated_number,
+                "content_type": "image",
+                "image": image,
+            },
+        ]
+
+        errors: list[str] = []
+        for index, payload in enumerate(variants, start=1):
+            try:
+                return await self._send(db, to, payload, "image")
+            except Msg91Error as exc:
+                errors.append(f"variant {index}: {exc}")
+                logger.warning("MSG91 image payload variant %s rejected: %s", index, exc)
+
+        # Do not dump ugly S3 links into the customer chat. Log the exact API errors
+        # so we can lock the account-specific media shape if MSG91 rejects all forms.
+        logger.error("All MSG91 image payload variants failed for %s: %s", to, " | ".join(errors))
+        return await self.send_text(
+            db,
+            to,
+            "Room photos are temporarily unavailable. Please try again shortly.",
+        )
 
 
 msg91 = Msg91Client()
