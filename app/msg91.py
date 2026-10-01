@@ -94,7 +94,13 @@ class Msg91Client:
                 "interactive": {
                     "type": "list",
                     "header": {"type": "text", "text": "EXPLORE"},
-                    "body": {"text": "How may we assist you today?"},
+                    "body": {
+                        "text": (
+                            "How may we assist you today?\n\n"
+                            "Nearby landmarks\n"
+                            "City Palace · Doodh Talai · Karni Mata · Fateh Sagar"
+                        )
+                    },
                     "footer": {"text": "Hotel Green Land · Udaipur"},
                     "action": {
                         "button": "View Menu",
