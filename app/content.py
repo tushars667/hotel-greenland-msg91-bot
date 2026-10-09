@@ -44,14 +44,20 @@ SUPER_DELUXE_RATE_TEXT = (
 )
 
 # Existing MSG91-hosted assets preserved from your current bot export.
+BASE_URL = "https://hotel-greenland-msg91-bot.onrender.com"
+
 DELUXE_PHOTOS = [
-    ("https://s3.ap-south-1.amazonaws.com/phone91.com/572962/bot/73e87923-8f00-4405-b290-27da06838f5e.delux.jpeg", "*DELUXE*"),
-    ("https://s3.ap-south-1.amazonaws.com/phone91.com/572962/bot/a01d3910-0716-4b3c-a5d9-9db3b436e596.delux1.jpeg", "*DELUXE*"),
-    ("https://s3.ap-south-1.amazonaws.com/phone91.com/572962/bot/7b410a17-24e3-4259-aabb-209c97a86b5c.delux3.jpeg", "*DELUXE*"),
+    (f"{BASE_URL}/static/deluxe/delux_1.JPG", "*DELUXE*"),
+    (f"{BASE_URL}/static/deluxe/delux_2.JPG", "*DELUXE*"),
+    (f"{BASE_URL}/static/deluxe/delux_3.JPG", "*DELUXE*"),
+    (f"{BASE_URL}/static/deluxe/delux_4.JPG", "*DELUXE*"),
+    (f"{BASE_URL}/static/deluxe/delux_5.JPG", "*DELUXE*"),
 ]
 
 SUPER_DELUXE_PHOTOS = [
-    ("https://s3.ap-south-1.amazonaws.com/phone91.com/572962/bot/e24305fd-8bba-4b69-bcab-d48ab5c6699c.sdelux.jpeg", "*SUPER DELUXE*"),
-    ("https://s3.ap-south-1.amazonaws.com/phone91.com/572962/bot/9540850c-0fed-4c17-8961-5b72e40361ff.sdelux2.jpeg", "*SUPER DELUXE*"),
-    ("https://s3.ap-south-1.amazonaws.com/phone91.com/572962/bot/54e399a5-a5fc-4899-9816-afa960c79a67.sdelux3.jpeg", "*SUPER DELUXE*"),
+    (f"{BASE_URL}/static/superdeluxe/super_delux_1.JPG", "*SUPER DELUXE*"),
+    (f"{BASE_URL}/static/superdeluxe/super_delux_2.JPG", "*SUPER DELUXE*"),
+    (f"{BASE_URL}/static/superdeluxe/super_delux_3.JPG", "*SUPER DELUXE*"),
+    (f"{BASE_URL}/static/superdeluxe/super_delux_4.JPG", "*SUPER DELUXE*"),
+    (f"{BASE_URL}/static/superdeluxe/super_delux_5.JPG", "*SUPER DELUXE*"),
 ]
