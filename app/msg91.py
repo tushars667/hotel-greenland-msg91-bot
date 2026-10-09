@@ -93,7 +93,7 @@ class Msg91Client:
                 "content_type": "interactive",
                 "interactive": {
                     "type": "list",
-                    "header": {"type": "text", "text": "EXPLORE"},
+                    "header": {"type": "text", "text": "HOTEL GREEN LAND"},
                     "body": {
                         "text": (
                             "How may we assist you today?\n\n"
@@ -102,6 +102,9 @@ class Msg91Client:
                         )
                     },
                     "footer": {"text": "Hotel Green Land · Udaipur"},
+                    "footer": {
+                        "text": "👇 Tap View Menu below to know more👇"
+                    },
                     "action": {
                         "button": "View Menu",
                         "sections": [{"title": "Explore", "rows": rows}],
