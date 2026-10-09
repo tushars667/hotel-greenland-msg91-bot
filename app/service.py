@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-
+import asyncio
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -64,10 +64,22 @@ async def _show_menu(db: Session, phone: str, state: CustomerState) -> None:
     db.commit()
 
 
-async def _send_gallery(db: Session, phone: str, photos: list[tuple[str, str]]) -> None:
+async def _send_gallery(
+    db: Session,
+    phone: str,
+    photos: list[tuple[str, str]],
+) -> None:
     for url, caption in photos:
         await msg91.send_image(db, phone, url, caption)
-    await msg91.send_text(db, phone, "Send *menu* anytime to view the main menu.")
+        await asyncio.sleep(1)
+
+    await asyncio.sleep(2)
+
+    await msg91.send_text(
+        db,
+        phone,
+        "Send *menu* anytime to view the main menu.",
+    )
 
 
 async def _process_inbound(db: Session, payload: dict, phone: str) -> dict:
