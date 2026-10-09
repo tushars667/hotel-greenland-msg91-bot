@@ -57,11 +57,7 @@ def _mark_inbound_processed(db: Session, event_key: str | None) -> None:
 
 
 async def _show_menu(db: Session, phone: str, state: CustomerState) -> None:
-    await msg91.send_text(
-        db,
-        phone,
-        "*HOTEL GREEN LAND*\n\nWelcome.\nA comfortable stay, thoughtfully arranged.\n\nHow may we assist you today?",
-    )
+
     await msg91.send_menu(db, phone)
     state.menu_sent_at = now_utc()
     state.updated_at = now_utc()
