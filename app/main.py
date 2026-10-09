@@ -1,5 +1,5 @@
 import logging
-
+from fastapi.staticfiles import StaticFiles
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
@@ -11,6 +11,7 @@ from app.service import handle_inbound, handle_outbound, now_utc
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 app = FastAPI(title="Hotel Green Land WhatsApp Bot", version="1.0.0")
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 
 @app.on_event("startup")
