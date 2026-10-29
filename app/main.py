@@ -15,6 +15,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 app = FastAPI(title="Hotel Green Land WhatsApp Bot", version="1.0.0")
 _running_tasks: set[asyncio.Task] = set()
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+inbound_lock = asyncio.Lock()
 
 
 @app.on_event("startup")
@@ -33,18 +34,21 @@ def get_db():
 
 
 async def process_inbound_background(payload: dict) -> None:
-    """Process MSG91 inbound work after the webhook has already been ACKed.
+    """Process inbound events one at a time to avoid SQLite write locks."""
 
-    MSG91's webhook timeout is short; sending multiple media messages synchronously
-    can exceed it and trigger retries. This task owns its own DB session.
-    """
-    db = SessionLocal()
-    try:
-        await handle_inbound(db, payload)
-    except Exception:
-        logging.getLogger(__name__).exception("Background inbound processing failed")
-    finally:
-        db.close()
+    async with inbound_lock:
+        db = SessionLocal()
+
+        try:
+            await handle_inbound(db, payload)
+
+        except Exception:
+            logging.getLogger(__name__).exception(
+                "Background inbound processing failed"
+            )
+
+        finally:
+            db.close()
 
 def verify_webhook_secret(x_webhook_secret: str | None) -> None:
     if not x_webhook_secret or x_webhook_secret != settings.webhook_secret:
