@@ -44,7 +44,7 @@ SUPER_DELUXE_RATE_TEXT = (
 )
 
 # Existing MSG91-hosted assets preserved from your current bot export.
-BASE_URL = "https://hotel-greenland-msg91-bot.onrender.com"
+BASE_URL = "https://hotel-greenland-msg91-bot-o1hh.onrender.com"
 
 DELUXE_PHOTOS = [
     (f"{BASE_URL}/static/deluxe/delux_1.JPG", "*DELUXE*"),
