@@ -1,6 +1,8 @@
 import logging
 from fastapi.staticfiles import StaticFiles
-from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request
+import asyncio
+
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -11,6 +13,7 @@ from app.service import handle_inbound, handle_outbound, now_utc
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 app = FastAPI(title="Hotel Green Land WhatsApp Bot", version="1.0.0")
+_running_tasks: set[asyncio.Task] = set()
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 
@@ -56,12 +59,19 @@ def health() -> dict:
 @app.post("/webhooks/msg91/inbound")
 async def msg91_inbound(
     request: Request,
-    background_tasks: BackgroundTasks,
     x_webhook_secret: str | None = Header(default=None),
 ):
     verify_webhook_secret(x_webhook_secret)
+
     payload = await request.json()
-    background_tasks.add_task(process_inbound_background, payload)
+
+    task = asyncio.create_task(
+        process_inbound_background(payload)
+    )
+
+    _running_tasks.add(task)
+    task.add_done_callback(_running_tasks.discard)
+
     return {"ok": True, "queued": True}
 
 
